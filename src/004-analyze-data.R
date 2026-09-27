@@ -95,7 +95,7 @@ sample_selection <- read_parquet(glue("{data_dir}/sample-selection.parquet"))
 
 regdata <- panel |>
   select(gvkey, datadate, date, relative_td, ret_mkt, turn, rel_vol,
-         year, decade) |>
+         year, decade,leverage_group) |>
   mutate(abs_ret_mkt  = abs(ret_mkt),
          event_day    = as.integer(relative_td == 0L),
          event_window = as.integer(abs(relative_td) <= 1L),
@@ -307,6 +307,32 @@ ft_decade <- modelsummary(decade_models,
                           coef_rename = decade_rename,
                           output      = "flextable")
 
+# Wen's comments：Table 6: my partition -- leverage -----------------------------------------------
+#
+# The extension partition, mirroring the by-decade regression above but
+# interacting event_day with leverage_group instead of decade. Same fixed
+# effect (one per announcement, firm_event) and the same two outcomes
+# (abnormal return magnitude and turnover) as every other table in this
+# script, so the leverage results are directly comparable to Tables 3-5.
+
+m_leverage_ret  <- fit(abs_ret_mkt ~ event_day:leverage_group | firm_event)
+m_leverage_turn <- fit(turn ~ event_day:leverage_group | firm_event)
+
+leverage_models <- list("Abs. abn. return" = m_leverage_ret,
+                        "Turnover"         = m_leverage_turn)
+
+leverage_rename <- \(x) str_replace(x, "event_day:leverage_group", "Day 0 x ")
+
+modelsummary(leverage_models,
+             stars       = STARS,
+             gof_omit    = GOF_OMIT,
+             fmt         = 4,
+             title       = "Announcement-day effect by leverage",
+             coef_rename = leverage_rename,
+             notes       = paste("Each coefficient is the announcement-day effect",
+                                 "estimated within that leverage tercile. Standard errors",
+                                 "clustered by firm and date."),
+             output      = glue("{output_dir}/my-partition.tex"))
 
 # Assemble the Word document ----------------------------------------------------
 
@@ -338,6 +364,10 @@ doc <- read_docx() |>
   body_add_par("Table 5: By decade", style = "heading 2") |>
   body_add_flextable(autofit(ft_decade)) |>
   body_add_break() |>
+  
+  body_add_par("Table 6: By leverage (your partition)", style = "heading 2") |>
+  body_add_flextable(autofit(ft_leverage)) |>
+  body_add_break() |>
 
   body_add_par("Figure 1: Trading volume", style = "heading 2") |>
   body_add_img(fig_png("fig1-volume"), width = 6, height = 3.86) |>
@@ -349,7 +379,13 @@ doc <- read_docx() |>
   body_add_img(fig_png("fig3-turnover-by-decade"), width = 6, height = 3.86) |>
 
   body_add_par("Figure 4: Return variability by decade", style = "heading 2") |>
-  body_add_img(fig_png("fig4-variability-by-decade"), width = 6, height = 3.86)
+  body_add_img(fig_png("fig4-variability-by-decade"), width = 6, height = 3.86)|>
+
+  body_add_par("Figure 6: Turnover by leverage (your partition)", style = "heading 2") |>
+  body_add_img(fig_png("fig6-my-partition"), width = 6, height = 3.86) |>
+  
+  body_add_par("Figure 7: Return variability by leverage (your partition)", style = "heading 2") |>
+  body_add_img(fig_png("fig7-my-partition-variability"), width = 6, height = 3.86)
 
 print(doc, target = glue("{output_dir}/tables.docx"))
 

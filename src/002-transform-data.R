@@ -134,7 +134,7 @@ index_tbl <- tbl(con, glue("read_parquet('{raw_data_dir}/crsp-index.parquet')"))
 
 annc <- fundq_tbl |>
   filter(!is.na(rdq)) |>
-  select(gvkey, datadate, fyearq, fqtr, rdq, conm, saleq, ibq, atq, prccq, cshoq)
+  select(gvkey, datadate, fyearq, fqtr, rdq, conm, saleq, ibq, atq, prccq, cshoq, dlcq, dlttq)
 
 sample_selection <- add_step(sample_selection, 1,
                              "Compustat firm-quarters with an announcement date (rdq)",
@@ -171,7 +171,7 @@ annc_linked <- annc |>
   inner_join(ccm, by = "gvkey") |>
   filter(rdq >= linkdt,
          is.na(linkenddt) | rdq <= linkenddt) |>
-  select(gvkey, permno, datadate, fyearq, rdq, conm)
+  select(gvkey, permno, datadate, fyearq, rdq, conm, atq, dlcq, dlttq)
 
 sample_selection <- add_step(sample_selection, 3,
                              "Merged to CRSP permno via CCM link",
@@ -276,6 +276,26 @@ annc_r <- annc_r |>
          event_date = trading_dates$date[event_idx]) |>
   filter(!is.na(event_td))
 
+# Wen's comments: New variable: book leverage ----------------------------------------------
+# Leverage = (debt in current liabilities + long-term debt) / total assets,
+# measured as of the fiscal quarter tied to the announcement. Firms are split
+# into terciles across the full sample so each group has roughly equal size.
+# DESIGN CHOICE: terciles are computed once, globally, rather than within each
+# decade/year -- this keeps the grouping stable and comparable across time,
+# at the cost of not adjusting for any trend in average leverage over the
+# sample period.
+annc_r <- annc_r |>
+  mutate(leverage = (dlcq + dlttq) / atq)
+
+lev_breaks <- quantile(annc_r$leverage, probs = c(1/3, 2/3), na.rm = TRUE)
+
+annc_r <- annc_r |>
+  mutate(leverage_group = case_when(
+    is.na(leverage)          ~ NA_character_,
+    leverage <= lev_breaks[1] ~ "Low Leverage",
+    leverage <= lev_breaks[2] ~ "Medium Leverage",
+    TRUE                      ~ "High Leverage"
+  ))
 sample_selection <- add_step(sample_selection, 4,
                              "Announcement mapped to a trading day",
                              nrow(annc_r))
@@ -326,27 +346,12 @@ panel <- events_tbl |>
          td <= event_td + DAYS_AFTER) |>
   mutate(relative_td = td - event_td) |>
   select(gvkey, permno, datadate, fyearq, rdq, event_td, event_date,
-         date, relative_td, ret, ret_mkt, vol, prc, shrout)
+         date, relative_td, ret, ret_mkt, vol, prc, shrout, leverage, leverage_group)
 
 # Step 6: build the Beaver measures --------------------------------------------
 
-# THE TWO VARIABLES BEAVER LOOKED AT:
-#
-#   VOLUME. Beaver scaled each firm's announcement-week volume by that
-#   firm's own average volume in non-announcement weeks -- so a large firm
-#   that always trades heavily does not swamp a small one. We compute two
-#   versions:
-#     rel_vol  volume / that event's own mean daily volume  (Beaver's ratio)
-#     turn     volume / shares outstanding                  (turnover)
-#   Turnover is the modern convention and is comparable across firms and
-#   across time in a way that raw volume is not. shrout is reported in
-#   THOUSANDS of shares while vol is in shares, hence the 1000.
-#
-#   RETURN VARIABILITY. Beaver did not look at the LEVEL of returns -- an
-#   announcement can be good news or bad news, so average returns wash out
-#   to roughly zero. He looked at the DISPERSION of returns. We report the
-#   standard deviation and the mean absolute return (the latter is far
-#   less sensitive to a single outlier).
+# T#   standard deviation and the mean absolute return (the latter is far
+c
 
 # Count events surviving the exchange screen BEFORE the minimum-
 # observations screen, so the two appear as separate rows in the sample
@@ -447,6 +452,22 @@ decade_summary <- panel |>
   collect() |>
   arrange(decade, relative_td)
 
+# Wen's comments: Extension: collapse to relative_td x leverage_group cell means/medians,
+# mirroring decade_summary above. This is the leverage-tercile analogue of
+# the by-decade collapse -- same aggregation logic, just grouped on the
+# extension variable instead of decade.
+leverage_summary <- panel |>
+  filter(!is.na(leverage_group)) |>
+  group_by(relative_td, leverage_group) |>
+  summarize(obs          = n(),
+            sd_ret_mkt   = sd(ret_mkt, na.rm = TRUE),
+            mad_ret_mkt  = mean(abs(ret_mkt), na.rm = TRUE),
+            mean_rel_vol = mean(rel_vol, na.rm = TRUE),
+            med_rel_vol  = median(rel_vol, na.rm = TRUE),
+            med_turn     = median(turn, na.rm = TRUE),
+            .groups = "drop") |>
+  collect() |>
+  arrange(leverage_group, relative_td)
 
 # Step 8: write everything out -------------------------------------------------
 
@@ -463,6 +484,8 @@ tictoc::toc()
 write_parquet(event_summary,  glue("{data_dir}/event-summary.parquet"))
 write_parquet(decade_summary, glue("{data_dir}/decade-summary.parquet"))
 write_parquet(sample_selection, glue("{data_dir}/sample-selection.parquet"))
+#Wen's comments: leverage_summary
+write_parquet(leverage_summary, glue("{data_dir}/leverage-summary.parquet"))
 
 print(sample_selection)
 

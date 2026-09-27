@@ -170,7 +170,7 @@ fundq_path <- glue("{raw_data_dir}/fundq-raw.parquet")
 
 fundq_sql <- glue("
   SELECT gvkey, datadate, fyearq, fqtr, rdq, conm, cusip, cik,
-         saleq, ibq, epspiq, atq, cshoq, prccq, ajexq
+         saleq, ibq, epspiq, atq, cshoq, prccq, ajexq, dlcq, dlttq
   FROM comp.fundq
   WHERE indfmt = 'INDL' AND datafmt = 'STD'
     AND popsrc = 'D' AND consol = 'C'

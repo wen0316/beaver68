@@ -55,7 +55,8 @@ dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
 event_summary  <- read_parquet(glue("{data_dir}/event-summary.parquet"))
 decade_summary <- read_parquet(glue("{data_dir}/decade-summary.parquet"))
-
+#Wen's comments:
+leverage_summary <- read_parquet(glue("{data_dir}/leverage-summary.parquet"))
 
 # A shared look for every figure ------------------------------------------------
 
@@ -263,3 +264,54 @@ save_fig(fig5, "fig5-observations")
 cat("\nFigures written to", output_dir, "\n")
 cat("  .pdf versions for LaTeX, .png versions for Word\n")
 cat("Next: src/004-analyze-data.R\n")
+
+# Wen's comment: Figure 6: turnover by leverage tercile (my partition) --------------------------
+#
+# The extension partition, mirroring fig3's by-decade turnover plot above but
+# split by leverage tercile instead of decade. Leverage = (debt in current
+# liabilities + long-term debt) / total assets, measured at the announcement
+# and split into terciles across the full sample (see 002-transform-data.R).
+
+fig6_my_partition <- leverage_summary |>
+  filter(!is.na(leverage_group)) |>
+  ggplot(aes(x = relative_td, y = med_turn,
+             colour = leverage_group, group = leverage_group)) +
+  annc_line +
+  geom_line(linewidth = 0.7) +
+  scale_x_continuous(breaks = seq(-20, 20, 5)) +
+  scale_y_continuous(labels = label_percent(accuracy = 0.01)) +
+  scale_colour_viridis_d(option = "D", end = 0.9) +
+  labs(title = "Median share turnover around annual earnings announcements",
+       subtitle = "By leverage tercile",
+       x = "Trading days relative to earnings announcement",
+       y = "Median daily turnover",
+       caption = cap(paste("Leverage = (debt in current liabilities + long-term debt) /",
+                           "total assets, split into terciles across all announcements."))) +
+  theme_beaver
+
+save_fig(fig6_my_partition, "fig6-my-partition")
+
+# Wen's comments Figure 7: return variability by leverage tercile (my partition) ---------------
+#
+# The price-reaction counterpart to fig6 above, mirroring fig4's by-decade
+# variability plot but split by leverage tercile instead of decade. Same
+# leverage construction as fig6 (see 002-transform-data.R).
+
+fig7_my_partition <- leverage_summary |>
+  filter(!is.na(leverage_group)) |>
+  ggplot(aes(x = relative_td, y = mad_ret_mkt,
+             colour = leverage_group, group = leverage_group)) +
+  annc_line +
+  geom_line(linewidth = 0.7) +
+  scale_x_continuous(breaks = seq(-20, 20, 5)) +
+  scale_y_continuous(labels = label_percent(accuracy = 0.1)) +
+  scale_colour_viridis_d(option = "D", end = 0.9) +
+  labs(title = "Return variability around annual earnings announcements",
+       subtitle = "By leverage tercile",
+       x = "Trading days relative to earnings announcement",
+       y = "Mean absolute market-adjusted return",
+       caption = cap(paste("Leverage = (debt in current liabilities + long-term debt) /",
+                           "total assets, split into terciles across all announcements."))) +
+  theme_beaver
+
+save_fig(fig7_my_partition, "fig7-my-partition-variability")
