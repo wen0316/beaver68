@@ -333,6 +333,13 @@ modelsummary(leverage_models,
                                  "estimated within that leverage tercile. Standard errors",
                                  "clustered by firm and date."),
              output      = glue("{output_dir}/my-partition.tex"))
+# Wen's comments (add missing codes on Oct 9)
+ft_leverage <- modelsummary(leverage_models,
+                            stars       = STARS,
+                            gof_omit    = GOF_OMIT,
+                            fmt         = 4,
+                            coef_rename = leverage_rename,
+                            output      = "flextable")
 
 # Assemble the Word document ----------------------------------------------------
 
