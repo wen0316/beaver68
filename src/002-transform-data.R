@@ -350,8 +350,23 @@ panel <- events_tbl |>
 
 # Step 6: build the Beaver measures --------------------------------------------
 
-# T#   standard deviation and the mean absolute return (the latter is far
-c
+# THE TWO VARIABLES BEAVER LOOKED AT:
+#
+#   VOLUME. Beaver scaled each firm's announcement-week volume by that
+#   firm's own average volume in non-announcement weeks -- so a large firm
+#   that always trades heavily does not swamp a small one. We compute two
+#   versions:
+#     rel_vol  volume / that event's own mean daily volume  (Beaver's ratio)
+#     turn     volume / shares outstanding                  (turnover)
+#   Turnover is the modern convention and is comparable across firms and
+#   across time in a way that raw volume is not. shrout is reported in
+#   THOUSANDS of shares while vol is in shares, hence the 1000.
+#
+#   RETURN VARIABILITY. Beaver did not look at the LEVEL of returns -- an
+#   announcement can be good news or bad news, so average returns wash out
+#   to roughly zero. He looked at the DISPERSION of returns. We report the
+#   standard deviation and the mean absolute return (the latter is far
+#   less sensitive to a single outlier).
 
 # Count events surviving the exchange screen BEFORE the minimum-
 # observations screen, so the two appear as separate rows in the sample
